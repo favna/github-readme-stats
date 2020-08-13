@@ -23,7 +23,7 @@ const fetcher = (variables, token) => {
               }
             }
           }
-          ${(varibales.extra && (varibales.extra.length !== 0) && variables.extra.every(val => val[1] && (val[1].length !== 0))) ? variables.extra.map(([org, repos]) => `
+          ${(variables.extra && (variables.extra.length !== 0) && variables.extra.every(val => val[1] && (val[1].length !== 0))) ? variables.extra.map(([org, repos]) => `
           ${org.split('-').join('')}: organization(login: "${org}") {
             ${repos.map(repo => `
             ${repo.split('-').join('')}: repository(name: "${repo}") {
@@ -50,7 +50,7 @@ const fetcher = (variables, token) => {
   );
 };
 
-async function fetchTopLanguages(username, extra) {
+async function fetchTopLanguages(username, extra = "") {
   if (!username) throw Error("Invalid username");
 
   if (!extra) extra = [];
@@ -72,7 +72,9 @@ async function fetchTopLanguages(username, extra) {
   let repoNodes = res.data.data.user.repositories.nodes;
   delete res.data.data.user;
   for (const topLevelOrgRepos of Object.values(res.data.data)) {
-    for (const orgRepo of Object.values(topLevelOrgRepos)) repoNodes.push(orgRepo);
+    for (const orgRepos of Object.values(topLevelOrgRepos)) {
+      repoNodes.push(orgRepos);
+    }
   }
 
   repoNodes = repoNodes
