@@ -6,11 +6,27 @@ const fetcher = (variables, token) => {
   return request(
     {
       query: `
-      query userInfo($login: String!) {
-        user(login: $login) {
-          # fetch only owner repos & not forks
-          repositories(ownerAffiliations: OWNER, isFork: false, first: 100) {
-            nodes {
+        query repositoryInfos($login: String!) {
+          user(login: $login) {
+            # fetch only owner repos & not forks
+            repositories(ownerAffiliations: OWNER, isFork: false, first: 100) {
+              nodes {
+                languages(first: 10, orderBy: {field: SIZE, direction: DESC}) {
+                  edges {
+                    size
+                    node {
+                      color
+                      name
+                    }
+                  }
+                }
+              }
+            }
+          }
+          ${(varibales.extra && (varibales.extra.length !== 0) && variables.extra.every(val => val[1] && (val[1].length !== 0))) ? variables.extra.map(([org, repos]) => `
+          ${org.split('-').join('')}: organization(login: "${org}") {
+            ${repos.map(repo => `
+            ${repo.split('-').join('')}: repository(name: "${repo}") {
               languages(first: 10, orderBy: {field: SIZE, direction: DESC}) {
                 edges {
                   size
@@ -21,9 +37,10 @@ const fetcher = (variables, token) => {
                 }
               }
             }
+            `)}  
           }
+          `) : ''}
         }
-      }
       `,
       variables,
     },
@@ -33,10 +50,19 @@ const fetcher = (variables, token) => {
   );
 };
 
-async function fetchTopLanguages(username) {
+async function fetchTopLanguages(username, extra) {
   if (!username) throw Error("Invalid username");
 
-  let res = await retryer(fetcher, { login: username });
+  if (!extra) extra = [];
+  else {
+    try {
+      extra = extra.split(';').map(val => val.split('/')).map(val => [val[0], val[1].split(',')]);
+    } catch {
+      extra = [];
+    }
+  }
+
+  let res = await retryer(fetcher, { login: username, extra });
 
   if (res.data.errors) {
     logger.error(res.data.errors);
@@ -44,6 +70,10 @@ async function fetchTopLanguages(username) {
   }
 
   let repoNodes = res.data.data.user.repositories.nodes;
+  delete res.data.data.user;
+  for (const topLevelOrgRepos of Object.values(res.data.data)) {
+    for (const orgRepo of Object.values(topLevelOrgRepos)) repoNodes.push(orgRepo);
+  }
 
   repoNodes = repoNodes
     .filter((node) => {
